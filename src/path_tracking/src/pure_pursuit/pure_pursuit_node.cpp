@@ -1,5 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
-#include "path_tracking/pure_pursuit.hpp" // 修正: "src/path_tracking/include/" プレフィックスを削除
+#include "path_tracking/pure_pursuit/pure_pursuit.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -11,5 +11,4 @@ int main(int argc, char *argv[])
 
     exec.spin();
     rclcpp::shutdown();
-    return 0; // Added return 0;
 }

@@ -6,6 +6,8 @@
 #include <string>
 #include <algorithm> // For std::max, std::min
 
+#include "path_tracking/visibility_control.h"
+
 namespace pure_pursuit_logic
 {
 

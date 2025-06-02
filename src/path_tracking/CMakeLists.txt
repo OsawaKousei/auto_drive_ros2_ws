@@ -24,8 +24,8 @@ ament_target_dependencies(path_server_node rclcpp nav_msgs geometry_msgs ament_i
 
 ament_auto_add_library(
   pure_pursuit
-  src/pure_pursuit.cpp
-  src/pure_pursuit_logic.cpp
+  src/pure_pursuit/pure_pursuit.cpp
+  src/pure_pursuit/pure_pursuit_logic.cpp
 )
 
 rclcpp_components_register_nodes(
@@ -34,7 +34,7 @@ rclcpp_components_register_nodes(
 
 ament_auto_add_executable(
   pure_pursuit_node
-  src/pure_pursuit_node.cpp
+  src/pure_pursuit/pure_pursuit_node.cpp
 )
 
 install(

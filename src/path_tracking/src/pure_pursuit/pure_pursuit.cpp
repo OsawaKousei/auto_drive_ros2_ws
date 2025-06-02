@@ -1,8 +1,8 @@
 #include <rclcpp_components/register_node_macro.hpp>
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
-#include "path_tracking/pure_pursuit_logic.hpp" // 修正: "path_tracking/" プレフィックスを削除
-#include "path_tracking/pure_pursuit.hpp"       // 修正: "path_tracking/" プレフィックスを削除
+#include "path_tracking/pure_pursuit/pure_pursuit_logic.hpp"
+#include "path_tracking/pure_pursuit/pure_pursuit.hpp"
 
 namespace pure_pursuit
 {

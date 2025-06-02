@@ -1,7 +1,7 @@
 #ifndef PURE_PURSUIT_HPP_
 #define PURE_PURSUIT_HPP_
 
-#include "pure_pursuit_logic.hpp" // 修正: "src/path_tracking/include/" プレフィックスを削除
+#include "pure_pursuit_logic.hpp" W
 #include "geometry_msgs/msg/pose.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -10,10 +10,12 @@
 #include "tf2/utils.h"
 #include "tf2/LinearMath/Quaternion.h"
 
-namespace pure_pursuit // This namespace is for the ROS wrapper
+#include "path_tracking/visibility_control.h"
+
+namespace pure_pursuit
 {
 
-    class PurePursuitController // This class is now a ROS wrapper
+    class PurePursuitController
     {
     public:
         PurePursuitController();
@@ -33,8 +35,9 @@ namespace pure_pursuit // This namespace is for the ROS wrapper
     class PurePursuit : public rclcpp::Node
     {
     public:
-        PurePursuit(const rclcpp::NodeOptions &options);
-        ~PurePursuit(); // Removed virtual and override for diagnostics
+        PATH_TRACKING_PUBLIC
+        explicit PurePursuit(const rclcpp::NodeOptions &options);
+        virtual ~PurePursuit();
         void pathCallback(const nav_msgs::msg::Path::SharedPtr msg);
         void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
         void controlLoop();

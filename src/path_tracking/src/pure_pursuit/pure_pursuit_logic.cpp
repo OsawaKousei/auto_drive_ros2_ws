@@ -1,5 +1,5 @@
-#include "path_tracking/pure_pursuit_logic.hpp" // 修正: "path_tracking/" プレフィックスを削除
-#include <limits>                               // Not strictly needed now, but good for general math algorithms
+#include "path_tracking/pure_pursuit/pure_pursuit_logic.hpp"
+#include <limits> // Not strictly needed now, but good for general math algorithms
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
