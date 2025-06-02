@@ -6,24 +6,11 @@
 #include <string>
 #include <algorithm> // For std::max, std::min
 
+#include "path_tracking/common.hpp"
 #include "path_tracking/visibility_control.h"
 
 namespace pure_pursuit_logic
 {
-
-    struct Point
-    {
-        double x;
-        double y;
-    };
-
-    struct Pose
-    {
-        double x;
-        double y;
-        double yaw;
-    };
-
     class PurePursuitAlgorithm
     {
     public:

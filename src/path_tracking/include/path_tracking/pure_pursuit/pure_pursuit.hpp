@@ -1,7 +1,7 @@
 #ifndef PURE_PURSUIT_HPP_
 #define PURE_PURSUIT_HPP_
 
-#include "pure_pursuit_logic.hpp" W
+#include "pure_pursuit_logic.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
