@@ -14,12 +14,12 @@ namespace pure_pursuit
 
     void PurePursuitController::setParams(double wb, double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
     {
-        algorithm_.setParams(wb, k_ld, min_ld, max_ld, target_v, goal_r);
+        algorithm_.setParams(k_ld, min_ld, max_ld, target_v, goal_r);
     }
 
     void PurePursuitController::setPath(const nav_msgs::msg::Path &path_msg)
     {
-        std::vector<pure_pursuit_logic::Point> path_points;
+        std::vector<path_tracking::Point> path_points;
         path_points.reserve(path_msg.poses.size());
         for (const auto &pose_stamped : path_msg.poses)
         {
@@ -29,14 +29,14 @@ namespace pure_pursuit
     }
 
     bool PurePursuitController::update(const geometry_msgs::msg::Pose &current_pose_msg, double current_velocity,
-                                       double &out_linear_velocity, double &out_angular_velocity)
+                                       double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity)
     {
-        pure_pursuit_logic::Pose current_pose_logic;
+        path_tracking::Pose current_pose_logic;
         current_pose_logic.x = current_pose_msg.position.x;
         current_pose_logic.y = current_pose_msg.position.y;
         current_pose_logic.yaw = tf2::getYaw(current_pose_msg.orientation);
 
-        return algorithm_.update(current_pose_logic, current_velocity, out_linear_velocity, out_angular_velocity);
+        return algorithm_.update(current_pose_logic, current_velocity, out_linear_x_velocity, out_linear_y_velocity, out_angular_velocity);
     }
 
     PurePursuit::PurePursuit(const rclcpp::NodeOptions &options) : rclcpp::Node("publish", options)
@@ -129,21 +129,24 @@ namespace pure_pursuit
             return;
         }
 
-        double linear_velocity = 0.0;
+        double linear_x_velocity = 0.0;
+        double linear_y_velocity = 0.0;
         double angular_velocity = 0.0;
 
-        bool success = controller_.update(current_pose_, current_velocity_, linear_velocity, angular_velocity);
+        bool success = controller_.update(current_pose_, current_velocity_, linear_x_velocity, linear_y_velocity, angular_velocity);
 
         geometry_msgs::msg::Twist cmd_vel_msg;
         if (success)
         {
-            cmd_vel_msg.linear.x = linear_velocity;
+            cmd_vel_msg.linear.x = linear_x_velocity;
+            cmd_vel_msg.linear.y = linear_y_velocity; // 全方向移動ロボット用
             cmd_vel_msg.angular.z = angular_velocity;
         }
         else
         {
             // Controller indicated to stop (e.g., end of path reached or error)
             cmd_vel_msg.linear.x = 0.0;
+            cmd_vel_msg.linear.y = 0.0; // 全方向移動ロボット用
             cmd_vel_msg.angular.z = 0.0;
             if (!controller_.hasReachedGoal())
             { // Avoid spamming if goal is already logged as reached
@@ -157,15 +160,17 @@ namespace pure_pursuit
     {
         geometry_msgs::msg::Twist cmd_vel_msg;
         cmd_vel_msg.linear.x = 0.0;
+        cmd_vel_msg.linear.y = 0.0; // 全方向移動ロボット用
         cmd_vel_msg.angular.z = 0.0;
         cmd_vel_pub_->publish(cmd_vel_msg);
     }
 
     // Add the definition for publishVelocityCommand
-    void PurePursuit::publishVelocityCommand(double linear_velocity, double angular_velocity)
+    void PurePursuit::publishVelocityCommand(double linear_x_velocity, double linear_y_velocity, double angular_velocity)
     {
         geometry_msgs::msg::Twist cmd_vel_msg;
-        cmd_vel_msg.linear.x = linear_velocity;
+        cmd_vel_msg.linear.x = linear_x_velocity;
+        cmd_vel_msg.linear.y = linear_y_velocity; // 全方向移動ロボット用
         cmd_vel_msg.angular.z = angular_velocity;
         if (cmd_vel_pub_)
         { // Ensure the publisher is initialized

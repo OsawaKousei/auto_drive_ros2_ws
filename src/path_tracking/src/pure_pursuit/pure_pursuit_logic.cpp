@@ -9,8 +9,7 @@ namespace pure_pursuit_logic
 {
 
     PurePursuitAlgorithm::PurePursuitAlgorithm()
-        : wheel_base_(2.0),
-          look_forward_gain_(0.3),
+        : look_forward_gain_(0.3),
           min_look_ahead_distance_(2.0),
           max_look_ahead_distance_(10.0),
           target_velocity_(1.0),
@@ -21,9 +20,8 @@ namespace pure_pursuit_logic
     {
     }
 
-    void PurePursuitAlgorithm::setParams(double wb, double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
+    void PurePursuitAlgorithm::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
     {
-        wheel_base_ = wb;
         look_forward_gain_ = k_ld;
         min_look_ahead_distance_ = min_ld;
         max_look_ahead_distance_ = max_ld;
@@ -31,7 +29,7 @@ namespace pure_pursuit_logic
         goal_radius_ = goal_r;
     }
 
-    void PurePursuitAlgorithm::setPath(const std::vector<Point> &path_points)
+    void PurePursuitAlgorithm::setPath(const std::vector<path_tracking::Point> &path_points)
     {
         current_path_logic_ = path_points;
         last_found_target_idx_ = -1;
@@ -51,7 +49,7 @@ namespace pure_pursuit_logic
         return angle;
     }
 
-    int PurePursuitAlgorithm::searchTargetIndex(const Pose &current_pose, double current_velocity)
+    int PurePursuitAlgorithm::searchTargetIndex(const path_tracking::Pose &current_pose, double current_velocity)
     {
         if (current_path_logic_.empty())
         {
@@ -86,12 +84,13 @@ namespace pure_pursuit_logic
         return -1;
     }
 
-    bool PurePursuitAlgorithm::update(const Pose &current_pose, double current_velocity,
-                                      double &out_linear_velocity, double &out_angular_velocity)
+    bool PurePursuitAlgorithm::update(const path_tracking::Pose &current_pose, double current_velocity,
+                                      double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity)
     {
         if (current_path_logic_.empty() || has_reached_goal_)
         {
-            out_linear_velocity = 0.0;
+            out_linear_x_velocity = 0.0;
+            out_linear_y_velocity = 0.0;
             out_angular_velocity = 0.0;
             return false;
         }
@@ -100,7 +99,8 @@ namespace pure_pursuit_logic
 
         if (target_idx < 0)
         {
-            out_linear_velocity = 0.0;
+            out_linear_x_velocity = 0.0;
+            out_linear_y_velocity = 0.0;
             out_angular_velocity = 0.0;
             return false;
         }
@@ -110,37 +110,61 @@ namespace pure_pursuit_logic
         double dx_global = target_point.x - current_pose.x;
         double dy_global = target_point.y - current_pose.y;
 
-        double alpha = normalizeAngle(std::atan2(dy_global, dx_global) - current_pose.yaw);
+        // 目標点への角度（グローバル座標系）
+        double target_angle = std::atan2(dy_global, dx_global);
 
-        double steering_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), current_look_ahead_distance_);
+        // ロボットの現在の姿勢からの相対角度
+        double alpha = normalizeAngle(target_angle - current_pose.yaw);
 
-        out_angular_velocity = current_velocity * std::tan(steering_angle) / wheel_base_;
-        // Ensure angular velocity is not NaN or Inf if current_velocity is very small and steering_angle is large.
-        // This can happen if look_ahead_distance is very small.
-        // However, current_look_ahead_distance_ has a minimum.
-        if (std::isnan(out_angular_velocity) || std::isinf(out_angular_velocity))
-        {
-            out_angular_velocity = 0.0; // Or some other safe value
-        }
+        // 全方向移動ロボットの場合、車体の向きに関係なく目標方向に動けるため
+        // ローカル座標系でのx,y速度成分を計算
+        double distance_to_target = std::sqrt(dx_global * dx_global + dy_global * dy_global);
 
-        out_linear_velocity = target_velocity_;
+        // ターゲット点への速度ベクトルをロボット座標系に変換
+        double speed_ratio = std::min(1.0, distance_to_target / current_look_ahead_distance_);
+        double local_vx = target_velocity_ * speed_ratio * std::cos(alpha);
+        double local_vy = target_velocity_ * speed_ratio * std::sin(alpha);
 
-        // Check if the vehicle is near the final goal of the path
-        // This check should be against the actual last point of the path if target_idx is the last point.
+        // グローバル座標系の速度をロボット座標系に変換
+        out_linear_x_velocity = local_vx;
+        out_linear_y_velocity = local_vy;
+
+        // 角速度計算 - 目標角度へ向かう回転速度
+        // 最終ターゲットの場合、最終点での姿勢も考慮する
         if (static_cast<size_t>(target_idx) == current_path_logic_.size() - 1)
         {
+            // 最終点に近づいたら姿勢も合わせる
+            // 最終点での理想的な姿勢は、最後の2点を結ぶ方向とする
+            // ここでは簡単のため、現在のyaw角をそのまま維持
+            out_angular_velocity = 0.0;
+
+            // 最終ゴールに十分近づいたかチェック
             double dx_to_actual_end = current_path_logic_.back().x - current_pose.x;
             double dy_to_actual_end = current_path_logic_.back().y - current_pose.y;
-            // Using squared distance to avoid sqrt until necessary
-            double dist_sq_to_final_goal = dx_to_actual_end * dx_to_actual_end + dy_to_actual_end * dy_to_actual_end;
-            if (std::sqrt(dist_sq_to_final_goal) < goal_radius_)
+            double dist_to_final_goal = std::sqrt(dx_to_actual_end * dx_to_actual_end + dy_to_actual_end * dy_to_actual_end);
+
+            if (dist_to_final_goal < goal_radius_)
             {
                 has_reached_goal_ = true;
-                out_linear_velocity = 0.0;
+                out_linear_x_velocity = 0.0;
+                out_linear_y_velocity = 0.0;
                 out_angular_velocity = 0.0;
-                return false; // Indicate finished
+                return false; // 終了を示す
             }
         }
+        else
+        {
+            // 経路に沿った方向を向くような角速度
+            // 経路の接線方向（次の点への方向）を計算
+            int next_idx = std::min(static_cast<int>(current_path_logic_.size()) - 1, target_idx + 1);
+            double path_angle = std::atan2(
+                current_path_logic_[next_idx].y - current_path_logic_[target_idx].y,
+                current_path_logic_[next_idx].x - current_path_logic_[target_idx].x);
+
+            double yaw_error = normalizeAngle(path_angle - current_pose.yaw);
+            out_angular_velocity = 2.0 * yaw_error; // 比例係数は調整可能
+        }
+
         return true;
     }
 

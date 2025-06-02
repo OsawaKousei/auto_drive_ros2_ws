@@ -1,12 +1,15 @@
-struct Point
+namespace path_tracking
 {
-    double x;
-    double y;
-};
+    struct Point
+    {
+        double x;
+        double y;
+    };
 
-struct Pose
-{
-    double x;
-    double y;
-    double yaw;
-};
+    struct Pose
+    {
+        double x;
+        double y;
+        double yaw;
+    };
+}

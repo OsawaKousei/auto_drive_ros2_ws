@@ -23,7 +23,7 @@ namespace pure_pursuit
         void setParams(double wb, double k_ld, double min_ld, double max_ld, double target_v, double goal_r);
         void setPath(const nav_msgs::msg::Path &path);
         bool update(const geometry_msgs::msg::Pose &current_pose_msg, double current_velocity,
-                    double &out_linear_velocity, double &out_angular_velocity);
+                    double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity);
 
         bool isPathSet() const { return algorithm_.isPathSet(); }
         bool hasReachedGoal() const { return algorithm_.hasReachedGoal(); }
@@ -42,7 +42,7 @@ namespace pure_pursuit
         void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
         void controlLoop();
         void publishStopCommand();
-        void publishVelocityCommand(double linear_velocity, double angular_velocity);
+        void publishVelocityCommand(double linear_x_velocity, double linear_y_velocity, double angular_velocity);
 
     private:
         rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
