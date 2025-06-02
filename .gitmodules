@@ -1,0 +1,3 @@
+[submodule "src/holonomic_robot"]
+	path = src/holonomic_robot
+	url = https://github.com/OsawaKousei/holonomic_robot.git
