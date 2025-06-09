@@ -44,13 +44,13 @@ namespace pure_pursuit
         this->declare_parameter<std::string>("odom_topic", "/odom");
         this->declare_parameter<std::string>("path_topic", "/local_path");
         this->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
-        this->declare_parameter<double>("look_forward_gain", 0.3);
-        this->declare_parameter<double>("min_look_ahead_distance", 1.0);
-        this->declare_parameter<double>("max_look_ahead_distance", 2.0);
+        this->declare_parameter<double>("look_forward_gain", 0.1);
+        this->declare_parameter<double>("min_look_ahead_distance", 0.5);
+        this->declare_parameter<double>("max_look_ahead_distance", 0.7);
         this->declare_parameter<double>("target_velocity", 1.0);    // m/s
         this->declare_parameter<double>("goal_radius", 0.5);        // Added goal_radius parameter
-        this->declare_parameter<double>("k_c", 0.5);                // Control gain for curvature
-        this->declare_parameter<double>("k_v_red", 0.5);            // Control gain for velocity reduction
+        this->declare_parameter<double>("k_c", 4.0);                // Control gain for curvature
+        this->declare_parameter<double>("k_v_red", 4.0);            // Control gain for velocity reduction
         this->declare_parameter<double>("control_loop_rate", 20.0); // Hz
 
         odom_topic_ = this->get_parameter("odom_topic").as_string();
