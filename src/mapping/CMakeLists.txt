@@ -17,7 +17,6 @@ install(
   launch
   config
   params
-  models
   DESTINATION share/${PROJECT_NAME}
 )
 
