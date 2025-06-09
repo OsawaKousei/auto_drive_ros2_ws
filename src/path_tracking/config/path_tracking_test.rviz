@@ -5,7 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /Odometry1
         - /Odometry1/Topic1
+        - /Odometry1/Shape1
       Splitter Ratio: 0.5
     Tree Height: 546
   - Class: rviz_common/Selection
@@ -146,10 +148,10 @@ Visualization Manager:
         Axes Length: 1
         Axes Radius: 0.10000000149011612
         Color: 255; 25; 0
-        Head Length: 0.30000001192092896
-        Head Radius: 0.10000000149011612
-        Shaft Length: 1
-        Shaft Radius: 0.05000000074505806
+        Head Length: 0.05000000074505806
+        Head Radius: 0.019999999552965164
+        Shaft Length: 0.10000000149011612
+        Shaft Radius: 0.009999999776482582
         Value: Arrow
       Topic:
         Depth: 5
@@ -233,25 +235,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 14.386019706726074
+      Distance: 7.462395191192627
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.005928804632276297
-        Y: -0.07551001012325287
-        Z: 0.11106328666210175
+        X: -0.08494262397289276
+        Y: 0.14340956509113312
+        Z: -0.8945996165275574
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8853980302810669
+      Pitch: 0.48539847135543823
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.7353965044021606
+      Yaw: 1.3853968381881714
     Saved: ~
 Window Geometry:
   Displays:
