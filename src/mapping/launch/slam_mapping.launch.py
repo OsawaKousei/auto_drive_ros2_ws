@@ -113,9 +113,7 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[
             {
                 # specify the configuration file
-                'config_file': os.path.join(
-                    holonomic_sim_pkg_dir, 'config', 'holonomic_test.yaml'
-                ),
+                'config_file': os.path.join(pkg_shared_dir, 'config', 'mapping.yaml'),
                 # set the QoS profile
                 'qos_overrides./tf_static.publisher.durability': 'transient_local',
                 'qos_overrides./odom.publisher.durability': 'transient_local',
@@ -151,7 +149,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     # get the rviz config file path
-    rviz_config_dir = os.path.join(pkg_shared_dir, 'config', 'mapping.rviz')
+    rviz_config_dir = os.path.join(pkg_shared_dir, 'config', 'slam_mapping.rviz')
 
     # launch the rviz2
     rviz2 = Node(
