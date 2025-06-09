@@ -59,14 +59,18 @@ def generate_launch_description() -> LaunchDescription:
         # フィールドのsdfファイルを指定
         arguments=[
             '-file',
-            PathJoinSubstitution([pkg_share_dir, "models", "field", "model.sdf"]),
+            PathJoinSubstitution(
+                [holonomic_sim_pkg_dir, "models", "field", "model.sdf"]
+            ),
             '-allow_renaming',
             'false',
         ],
     )
 
     # ワールドのsdfファイルを設定(worldタグのあるsdfファイル)
-    world = os.path.join(pkg_share_dir, "models", "worlds", "nav_slam.sdf")
+    world = os.path.join(
+        holonomic_sim_pkg_dir, "models", "worlds", "holonomic_test.sdf"
+    )
 
     # ignition gazeboの起動設定
     ign_gz = IncludeLaunchDescription(
