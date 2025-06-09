@@ -47,9 +47,6 @@ namespace pure_pursuit_logic
 
         ClosestPointResult findClosestSegment(const path_tracking::Pose &current_pose) const;
         int searchTargetIndexByDistanceAlongPath(const ClosestPointResult &closest_result, double look_ahead_distance) const;
-
-        bool update(const path_tracking::Pose &current_pose, double current_velocity,
-                    double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity);
         double normalizeAngle(double angle);
     };
 

@@ -7,6 +7,12 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// calculatePathCurvature関数のプロトタイプ宣言を追加
+namespace path_tracking
+{
+    void calculatePathCurvature(std::vector<Point> &path_points);
+}
+
 namespace pure_pursuit_logic
 {
 
@@ -186,7 +192,8 @@ namespace pure_pursuit_logic
             current_path_logic_[next_idx_for_yaw].x - current_path_logic_[prev_idx_for_yaw].x);
 
         // 最終点に近づいたら、その手前のセグメントの向きを目標ヨー角とする
-        if (target_idx == current_path_logic_.size() - 1)
+        // 符号なし整数との比較警告を修正
+        if (target_idx == static_cast<int>(current_path_logic_.size()) - 1)
         {
             const auto &p_final = current_path_logic_.back();
             const auto &p_before_final = current_path_logic_[current_path_logic_.size() - 2];
