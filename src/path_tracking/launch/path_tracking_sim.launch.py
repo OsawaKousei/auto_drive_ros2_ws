@@ -135,6 +135,15 @@ def generate_launch_description() -> LaunchDescription:
         ],
     )
 
+    # tf between map and odom
+    map_static_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_transform_publisher',
+        output='log',
+        arguments=['0.0', '0.0', '0.0', '0.0', '0.0', '0.0', 'map', 'odom'],
+    )
+
     # get the rviz config file path
     rviz_config_dir = os.path.join(pkg_shared_dir, 'config', 'path_tracking_test.rviz')
 
@@ -190,6 +199,7 @@ def generate_launch_description() -> LaunchDescription:
                 'world_name', default_value=world_name, description='World name'
             ),
             robot_state_publisher,
+            map_static_tf,
             rviz2,
             rqt,
             path_tracking_node,
