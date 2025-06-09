@@ -5,12 +5,25 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    EmitEvent,
     IncludeLaunchDescription,
+    LogInfo,
+    RegisterEventHandler,
     SetEnvironmentVariable,
 )
+from launch.conditions import IfCondition
+from launch.events import matches_action
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch.substitutions import (
+    AndSubstitution,
+    LaunchConfiguration,
+    NotSubstitution,
+    PathJoinSubstitution,
+)
+from launch_ros.actions import LifecycleNode, Node
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -18,7 +31,9 @@ def generate_launch_description() -> LaunchDescription:
     world_name = LaunchConfiguration('world_name', default='nav_slam_world')
     holonomic_sim_pkg_dir = get_package_share_directory('holonomic_sim')
     pkg_share_dir = get_package_share_directory('mapping')
-    model_path = os.path.join(pkg_share_dir, "models")
+    model_path = os.path.join(holonomic_sim_pkg_dir, "models")
+    autostart = LaunchConfiguration('autostart', default='true')
+    use_lifecycle_manager = LaunchConfiguration("use_lifecycle_manager", default='true')
 
     # ignition gazeboがモデルにアクセスできるように設定
     ign_resource_path = SetEnvironmentVariable(
@@ -38,7 +53,9 @@ def generate_launch_description() -> LaunchDescription:
             'LidarRobo',
             # ロボットのsdfファイルを指定
             '-file',
-            PathJoinSubstitution([pkg_share_dir, "models", "LidarRobo", "model.sdf"]),
+            PathJoinSubstitution(
+                [holonomic_sim_pkg_dir, "models", "LidarRobo", "model.sdf"]
+            ),
             # ロボットの位置を指定
             '-allow_renaming',
             'true',
@@ -49,6 +66,7 @@ def generate_launch_description() -> LaunchDescription:
             '-z',
             '0.075',
         ],
+        parameters=[{'use_sim_time': use_sim_time}],
     )
 
     # フィールドをスポーンさせる設定
@@ -65,6 +83,7 @@ def generate_launch_description() -> LaunchDescription:
             '-allow_renaming',
             'false',
         ],
+        parameters=[{'use_sim_time': use_sim_time}],
     )
 
     # ワールドのsdfファイルを設定(worldタグのあるsdfファイル)
@@ -106,7 +125,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     # ロボットのsdfファイルのパスを取得
-    sdf = os.path.join(pkg_share_dir, 'models', 'LidarRobo', 'model.sdf')
+    sdf = os.path.join(holonomic_sim_pkg_dir, 'models', 'LidarRobo', 'model.sdf')
 
     # xacroでsdfファイルをurdfに変換
     doc = xacro.parse(open(sdf))
@@ -118,7 +137,7 @@ def generate_launch_description() -> LaunchDescription:
         executable='robot_state_publisher',
         name='robot_state_publisher',
         output='both',
-        parameters=[{'use_sim_time': use_sim_time, 'robot_description': doc.toxml()}],
+        parameters=[{'use_sim_time': True, 'robot_description': doc.toxml()}],
     )  # type: ignore
 
     # rviz2の設定フィルのパスを取得
@@ -134,21 +153,53 @@ def generate_launch_description() -> LaunchDescription:
         output='screen',
     )
 
-    # slam_toolboxの起動オプション設定
-    slam_params_file = LaunchConfiguration('slam_params_file')
-    declare_slam_params_file_cmd = DeclareLaunchArgument(
-        'slam_params_file',
-        default_value=os.path.join(pkg_share_dir, 'params', 'slam_params.yaml'),
-        description='Full path to the ROS2 parameters file to use for the slam_toolbox node',
-    )
+    slam_params_file = os.path.join(pkg_share_dir, 'config', 'slam_params.yaml')
 
-    # slam_toolboxの起動設定
-    start_async_slam_toolbox_node = Node(
-        parameters=[slam_params_file, {'use_sim_time': use_sim_time}],
+    start_async_slam_toolbox_node = LifecycleNode(
+        parameters=[
+            slam_params_file,
+            {
+                'use_lifecycle_manager': use_lifecycle_manager,
+                'use_sim_time': use_sim_time,
+            },
+        ],
         package='slam_toolbox',
         executable='async_slam_toolbox_node',
         name='slam_toolbox',
         output='screen',
+        namespace='',
+    )
+
+    configure_event = EmitEvent(
+        event=ChangeState(
+            lifecycle_node_matcher=matches_action(start_async_slam_toolbox_node),
+            transition_id=Transition.TRANSITION_CONFIGURE,
+        ),
+        condition=IfCondition(
+            AndSubstitution(autostart, NotSubstitution(use_lifecycle_manager))
+        ),
+    )
+
+    activate_event = RegisterEventHandler(
+        OnStateTransition(
+            target_lifecycle_node=start_async_slam_toolbox_node,
+            start_state="configuring",
+            goal_state="inactive",
+            entities=[
+                LogInfo(msg="[LifecycleLaunch] Slamtoolbox node is activating."),
+                EmitEvent(
+                    event=ChangeState(
+                        lifecycle_node_matcher=matches_action(
+                            start_async_slam_toolbox_node
+                        ),
+                        transition_id=Transition.TRANSITION_ACTIVATE,
+                    )
+                ),
+            ],
+        ),
+        condition=IfCondition(
+            AndSubstitution(autostart, NotSubstitution(use_lifecycle_manager))
+        ),
     )
 
     return LaunchDescription(
@@ -168,7 +219,8 @@ def generate_launch_description() -> LaunchDescription:
             bridge,
             robot_state_publisher,
             rviz2,
-            declare_slam_params_file_cmd,
             start_async_slam_toolbox_node,
+            configure_event,
+            activate_event,
         ]
     )
