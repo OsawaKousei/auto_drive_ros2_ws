@@ -20,7 +20,7 @@ def generate_launch_description() -> LaunchDescription:
     )
 
     lifecycle_nodes = ['map_server']
-    use_sim_time = True
+    use_sim_time = False
     autostart = True
 
     start_lifecycle_manager = launch_ros.actions.Node(
