@@ -1,28 +1,31 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-class PathServerNode : public rclcpp::Node
+class PathPublisherNode : public rclcpp::Node
 {
 public:
-    PathServerNode()
-        : Node("path_server_node")
+    PathPublisherNode()
+        : Node("path_Publisher_node")
     {
         this->declare_parameter<std::string>("csv_file_path",
                                              ament_index_cpp::get_package_share_directory("path_tracking") + "/path/local_path.csv");
         this->declare_parameter<std::string>("frame_id", "map");
-        this->declare_parameter<double>("publish_rate", 1.0); // Hz
 
         csv_file_path_ = this->get_parameter("csv_file_path").as_string();
         frame_id_ = this->get_parameter("frame_id").as_string();
-        double publish_rate = this->get_parameter("publish_rate").as_double();
 
         path_publisher_ = this->create_publisher<nav_msgs::msg::Path>("local_path", 10);
+
+        path_publish_flag_subscriber_ = this->create_subscription<std_msgs::msg::Bool>(
+            "path_publish_flag", 10,
+            std::bind(&PathPublisherNode::path_publish_flag_callback, this, std::placeholders::_1));
 
         if (!load_path_from_csv())
         {
@@ -30,11 +33,7 @@ public:
             return;
         }
 
-        timer_ = this->create_wall_timer(
-            std::chrono::duration<double>(1.0 / publish_rate),
-            std::bind(&PathServerNode::publish_path, this));
-
-        RCLCPP_INFO(this->get_logger(), "Path server node started. Publishing path from: %s", csv_file_path_.c_str());
+        RCLCPP_INFO(this->get_logger(), "Path Publisher node started. Publishing path from: %s", csv_file_path_.c_str());
     }
 
 private:
@@ -85,12 +84,19 @@ private:
         return !path_msg_.poses.empty();
     }
 
+    void path_publish_flag_callback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+        publish_path();
+        RCLCPP_INFO(this->get_logger(), "Path published with %zu poses.", path_msg_.poses.size());
+    }
+
     void publish_path()
     {
         if (path_msg_.poses.empty())
         {
             return;
         }
+
         path_msg_.header.stamp = this->now();
         for (auto &pose : path_msg_.poses)
         {
@@ -100,7 +106,7 @@ private:
     }
 
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr path_publish_flag_subscriber_;
     nav_msgs::msg::Path path_msg_;
     std::string csv_file_path_;
     std::string frame_id_;
@@ -109,7 +115,7 @@ private:
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<PathServerNode>());
+    rclcpp::spin(std::make_shared<PathPublisherNode>());
     rclcpp::shutdown();
     return 0;
 }

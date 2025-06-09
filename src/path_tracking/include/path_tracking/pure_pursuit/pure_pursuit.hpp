@@ -20,7 +20,7 @@ namespace pure_pursuit
     public:
         PurePursuitController();
 
-        void setParams(double wb, double k_ld, double min_ld, double max_ld, double target_v, double goal_r);
+        void setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r);
         void setPath(const nav_msgs::msg::Path &path);
         bool update(const geometry_msgs::msg::Pose &current_pose_msg, double current_velocity,
                     double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity);

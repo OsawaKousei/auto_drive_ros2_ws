@@ -12,7 +12,7 @@ namespace pure_pursuit
         // Initialization of algorithm_ is handled by its own constructor
     }
 
-    void PurePursuitController::setParams(double wb, double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
+    void PurePursuitController::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
     {
         algorithm_.setParams(k_ld, min_ld, max_ld, target_v, goal_r);
     }
@@ -44,7 +44,6 @@ namespace pure_pursuit
         this->declare_parameter<std::string>("odom_topic", "/odom");
         this->declare_parameter<std::string>("path_topic", "/local_path");
         this->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
-        this->declare_parameter<double>("wheel_base", 2.0);
         this->declare_parameter<double>("look_forward_gain", 0.3);
         this->declare_parameter<double>("min_look_ahead_distance", 2.0);
         this->declare_parameter<double>("max_look_ahead_distance", 10.0);
@@ -55,7 +54,6 @@ namespace pure_pursuit
         odom_topic_ = this->get_parameter("odom_topic").as_string();
         path_topic_ = this->get_parameter("path_topic").as_string();
         cmd_vel_topic_ = this->get_parameter("cmd_vel_topic").as_string();
-        double wb = this->get_parameter("wheel_base").as_double();
         double k_ld = this->get_parameter("look_forward_gain").as_double();
         double min_ld = this->get_parameter("min_look_ahead_distance").as_double();
         double max_ld = this->get_parameter("max_look_ahead_distance").as_double();
@@ -63,7 +61,7 @@ namespace pure_pursuit
         double goal_r = this->get_parameter("goal_radius").as_double(); // Use goal_radius
         double control_loop_rate = this->get_parameter("control_loop_rate").as_double();
 
-        controller_.setParams(wb, k_ld, min_ld, max_ld, target_v, goal_r); // Pass goal_r
+        controller_.setParams(k_ld, min_ld, max_ld, target_v, goal_r); // Pass goal_r
 
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             path_topic_, 10, std::bind(&PurePursuit::pathCallback, this, std::placeholders::_1));
@@ -139,14 +137,14 @@ namespace pure_pursuit
         if (success)
         {
             cmd_vel_msg.linear.x = linear_x_velocity;
-            cmd_vel_msg.linear.y = linear_y_velocity; // 全方向移動ロボット用
+            cmd_vel_msg.linear.y = linear_y_velocity;
             cmd_vel_msg.angular.z = angular_velocity;
         }
         else
         {
             // Controller indicated to stop (e.g., end of path reached or error)
             cmd_vel_msg.linear.x = 0.0;
-            cmd_vel_msg.linear.y = 0.0; // 全方向移動ロボット用
+            cmd_vel_msg.linear.y = 0.0;
             cmd_vel_msg.angular.z = 0.0;
             if (!controller_.hasReachedGoal())
             { // Avoid spamming if goal is already logged as reached
@@ -160,7 +158,7 @@ namespace pure_pursuit
     {
         geometry_msgs::msg::Twist cmd_vel_msg;
         cmd_vel_msg.linear.x = 0.0;
-        cmd_vel_msg.linear.y = 0.0; // 全方向移動ロボット用
+        cmd_vel_msg.linear.y = 0.0;
         cmd_vel_msg.angular.z = 0.0;
         cmd_vel_pub_->publish(cmd_vel_msg);
     }
@@ -170,7 +168,7 @@ namespace pure_pursuit
     {
         geometry_msgs::msg::Twist cmd_vel_msg;
         cmd_vel_msg.linear.x = linear_x_velocity;
-        cmd_vel_msg.linear.y = linear_y_velocity; // 全方向移動ロボット用
+        cmd_vel_msg.linear.y = linear_y_velocity;
         cmd_vel_msg.angular.z = angular_velocity;
         if (cmd_vel_pub_)
         { // Ensure the publisher is initialized
@@ -183,22 +181,6 @@ namespace pure_pursuit
             RCLCPP_WARN(this->get_logger(), "cmd_vel_pub_ not initialized in publishVelocityCommand.");
         }
     }
-
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-    rclcpp::TimerBase::SharedPtr control_timer_;
-
-    pure_pursuit::PurePursuitController controller_;
-    geometry_msgs::msg::Pose current_pose_;
-    double current_velocity_;
-    bool path_received_ = false;
-    bool odom_received_ = false;
-
-    std::string odom_topic_;
-    std::string path_topic_;
-    std::string cmd_vel_topic_;
-
 } // namespace pure_pursuit
 
 RCLCPP_COMPONENTS_REGISTER_NODE(pure_pursuit::PurePursuit)

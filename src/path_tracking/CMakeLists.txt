@@ -11,12 +11,12 @@ find_package(ament_index_cpp REQUIRED)
 
 ament_auto_find_build_dependencies()
 
-# Path server node
+# Path publisher node
 ament_auto_add_executable(
-  path_server_node
-  src/path_server_node.cpp
+  path_publisher_node
+  src/path_publisher_node.cpp
 )
-ament_target_dependencies(path_server_node ament_index_cpp)
+ament_target_dependencies(path_publisher_node ament_index_cpp)
 
 # Pure Pursuit component
 ament_auto_add_library(
@@ -38,6 +38,8 @@ ament_auto_add_executable(
 install(
   DIRECTORY
   path
+  launch
+  config
   DESTINATION share/${PROJECT_NAME}
 )
 
