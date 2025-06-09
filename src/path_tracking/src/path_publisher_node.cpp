@@ -15,7 +15,7 @@ public:
         : Node("path_Publisher_node")
     {
         this->declare_parameter<std::string>("csv_file_path",
-                                             ament_index_cpp::get_package_share_directory("path_tracking") + "/path/local_path.csv");
+                                             ament_index_cpp::get_package_share_directory("path_tracking") + "/path/global_path.csv");
         this->declare_parameter<std::string>("frame_id", "map");
 
         csv_file_path_ = this->get_parameter("csv_file_path").as_string();
