@@ -16,7 +16,7 @@ namespace pure_pursuit_logic
     public:
         PurePursuitAlgorithm();
 
-        void setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r);
+        void setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r, double k_c, double k_v_red);
         void setPath(const std::vector<path_tracking::Point> &path_points);
         bool update(const path_tracking::Pose &current_pose, double current_velocity,
                     double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity);
@@ -29,13 +29,27 @@ namespace pure_pursuit_logic
         double max_look_ahead_distance_;
         double target_velocity_;
         double goal_radius_;
+        double curvature_gain_;          // 先読み距離を曲率で調整するためのゲイン
+        double velocity_reduction_gain_; // 速度を曲率で落とすためのゲイン
+
+        // 最近傍点探索の結果を保持する内部構造体
+        struct ClosestPointResult
+        {
+            int segment_idx = -1;
+            double closest_t = 0.0; // セグメント上の射影位置 (0.0 to 1.0)
+            double distance_sq = std::numeric_limits<double>::max();
+        };
 
         std::vector<path_tracking::Point> current_path_logic_;
         int last_found_target_idx_;
         double current_look_ahead_distance_;
         bool has_reached_goal_;
 
-        int searchTargetIndex(const path_tracking::Pose &current_pose, double current_velocity);
+        ClosestPointResult findClosestSegment(const path_tracking::Pose &current_pose) const;
+        int searchTargetIndexByDistanceAlongPath(const ClosestPointResult &closest_result, double look_ahead_distance) const;
+
+        bool update(const path_tracking::Pose &current_pose, double current_velocity,
+                    double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity);
         double normalizeAngle(double angle);
     };
 

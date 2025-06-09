@@ -23,6 +23,7 @@ ament_auto_add_library(
   pure_pursuit
   src/pure_pursuit/pure_pursuit.cpp
   src/pure_pursuit/pure_pursuit_logic.cpp
+  src/util/menger_curvature.cpp
 )
 
 rclcpp_components_register_nodes(

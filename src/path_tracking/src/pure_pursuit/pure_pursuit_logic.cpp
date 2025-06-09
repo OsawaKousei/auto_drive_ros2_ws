@@ -1,5 +1,7 @@
+#include <limits>
+
 #include "path_tracking/pure_pursuit/pure_pursuit_logic.hpp"
-#include <limits> // Not strictly needed now, but good for general math algorithms
+#include "path_tracking/util/menger_curvature.hpp"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -14,30 +16,39 @@ namespace pure_pursuit_logic
           max_look_ahead_distance_(10.0),
           target_velocity_(1.0),
           goal_radius_(0.5),
+          curvature_gain_(1.5),
+          velocity_reduction_gain_(1.0),
           last_found_target_idx_(-1),
           current_look_ahead_distance_(2.0),
           has_reached_goal_(false)
     {
     }
 
-    void PurePursuitAlgorithm::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
+    void PurePursuitAlgorithm::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r, double k_c, double k_v_red)
     {
         look_forward_gain_ = k_ld;
         min_look_ahead_distance_ = min_ld;
         max_look_ahead_distance_ = max_ld;
         target_velocity_ = target_v;
         goal_radius_ = goal_r;
+        curvature_gain_ = k_c;
+        velocity_reduction_gain_ = k_v_red;
     }
 
     void PurePursuitAlgorithm::setPath(const std::vector<path_tracking::Point> &path_points)
     {
         current_path_logic_ = path_points;
-        last_found_target_idx_ = -1;
-        has_reached_goal_ = false;
         if (!current_path_logic_.empty())
         {
+            // パスが設定されたら曲率を計算
+            calculatePathCurvature(current_path_logic_);
             last_found_target_idx_ = 0;
         }
+        else
+        {
+            last_found_target_idx_ = -1;
+        }
+        has_reached_goal_ = false;
     }
 
     double PurePursuitAlgorithm::normalizeAngle(double angle)
@@ -49,45 +60,75 @@ namespace pure_pursuit_logic
         return angle;
     }
 
-    int PurePursuitAlgorithm::searchTargetIndex(const path_tracking::Pose &current_pose, double current_velocity)
+    // --- ヘルパー関数：最近傍点と目標点の探索 ---
+    PurePursuitAlgorithm::ClosestPointResult PurePursuitAlgorithm::findClosestSegment(const path_tracking::Pose &current_pose) const
     {
-        if (current_path_logic_.empty())
+        ClosestPointResult result;
+        if (current_path_logic_.size() < 2)
+            return result;
+
+        for (size_t i = 0; i < current_path_logic_.size() - 1; ++i)
         {
-            return -1;
-        }
+            const auto &p1 = current_path_logic_[i];
+            const auto &p2 = current_path_logic_[i + 1];
+            double dx = p2.x - p1.x, dy = p2.y - p1.y;
 
-        current_look_ahead_distance_ = look_forward_gain_ * std::abs(current_velocity) + min_look_ahead_distance_;
-        current_look_ahead_distance_ = std::max(min_look_ahead_distance_, std::min(current_look_ahead_distance_, max_look_ahead_distance_));
+            if (dx == 0 && dy == 0)
+                continue;
 
-        int N = current_path_logic_.size();
-        int search_start_idx = (last_found_target_idx_ >= 0) ? last_found_target_idx_ : 0;
+            double len_sq = dx * dx + dy * dy;
+            double dot = (current_pose.x - p1.x) * dx + (current_pose.y - p1.y) * dy;
+            double t = std::max(0.0, std::min(1.0, dot / len_sq));
 
-        for (int i = search_start_idx; i < N; ++i)
-        {
-            double dx = current_path_logic_[i].x - current_pose.x;
-            double dy = current_path_logic_[i].y - current_pose.y;
-            double dist = std::sqrt(dx * dx + dy * dy);
+            double closest_x = p1.x + t * dx;
+            double closest_y = p1.y + t * dy;
+            double dist_sq = std::pow(current_pose.x - closest_x, 2) + std::pow(current_pose.y - closest_y, 2);
 
-            if (dist >= current_look_ahead_distance_)
+            if (dist_sq < result.distance_sq)
             {
-                last_found_target_idx_ = i;
-                return i;
+                result.distance_sq = dist_sq;
+                result.segment_idx = i;
+                result.closest_t = t;
             }
         }
-
-        if (N > 0)
-        {
-            last_found_target_idx_ = N - 1;
-            return N - 1;
-        }
-
-        return -1;
+        return result;
     }
 
+    int PurePursuitAlgorithm::searchTargetIndexByDistanceAlongPath(const ClosestPointResult &closest_result, double look_ahead_distance) const
+    {
+        double distance_traveled = 0.0;
+        const auto &p_start_segment = current_path_logic_[closest_result.segment_idx];
+        const auto &p_end_segment = current_path_logic_[closest_result.segment_idx + 1];
+        double segment_length = std::hypot(p_end_segment.x - p_start_segment.x, p_end_segment.y - p_start_segment.y);
+
+        distance_traveled = segment_length * (1.0 - closest_result.closest_t);
+
+        if (distance_traveled >= look_ahead_distance)
+        {
+            return closest_result.segment_idx + 1;
+        }
+
+        for (size_t i = closest_result.segment_idx + 1; i < current_path_logic_.size() - 1; ++i)
+        {
+            const auto &p1 = current_path_logic_[i];
+            const auto &p2 = current_path_logic_[i + 1];
+            double current_segment_length = std::hypot(p2.x - p1.x, p2.y - p1.y);
+
+            if (distance_traveled + current_segment_length >= look_ahead_distance)
+            {
+                return i + 1;
+            }
+            distance_traveled += current_segment_length;
+        }
+
+        return current_path_logic_.size() - 1;
+    }
+
+    // --- メインのUPDATE関数 ---
     bool PurePursuitAlgorithm::update(const path_tracking::Pose &current_pose, double current_velocity,
                                       double &out_linear_x_velocity, double &out_linear_y_velocity, double &out_angular_velocity)
     {
-        if (current_path_logic_.empty() || has_reached_goal_)
+        if (current_path_logic_.empty() || has_reached_goal_ || current_path_logic_.size() < 2)
         {
             out_linear_x_velocity = 0.0;
             out_linear_y_velocity = 0.0;
@@ -95,75 +136,65 @@ namespace pure_pursuit_logic
             return false;
         }
 
-        int target_idx = searchTargetIndex(current_pose, current_velocity);
+        // 1. 経路上でロボットに最も近い点を見つける
+        ClosestPointResult closest_result = findClosestSegment(current_pose);
+        if (closest_result.segment_idx < 0)
+            return false;
 
-        if (target_idx < 0)
+        // 2. 曲率に基づいてパラメータを動的に調整
+        double path_curvature = current_path_logic_[closest_result.segment_idx].curvature;
+
+        double current_target_velocity = target_velocity_ / (1.0 + velocity_reduction_gain_ * std::abs(path_curvature));
+
+        double base_ld = look_forward_gain_ * std::abs(current_velocity) + min_look_ahead_distance_;
+        double adaptive_ld = base_ld / (1.0 + curvature_gain_ * std::abs(path_curvature));
+        double look_ahead_distance = std::max(min_look_ahead_distance_, std::min(adaptive_ld, max_look_ahead_distance_));
+
+        // 3. パスに沿って目標点を探索
+        int target_idx = searchTargetIndexByDistanceAlongPath(closest_result, look_ahead_distance);
+        last_found_target_idx_ = target_idx; // last_found_target_idx_を更新
+
+        // 4. ゴール判定
+        const auto &final_goal = current_path_logic_.back();
+        double dist_to_final_goal = std::hypot(final_goal.x - current_pose.x, final_goal.y - current_pose.y);
+
+        if (dist_to_final_goal < goal_radius_)
         {
+            has_reached_goal_ = true;
             out_linear_x_velocity = 0.0;
             out_linear_y_velocity = 0.0;
             out_angular_velocity = 0.0;
             return false;
         }
 
+        // 5. 速度指令を計算
         const auto &target_point = current_path_logic_[target_idx];
-
         double dx_global = target_point.x - current_pose.x;
         double dy_global = target_point.y - current_pose.y;
-
-        // 目標点への角度（グローバル座標系）
         double target_angle = std::atan2(dy_global, dx_global);
-
-        // ロボットの現在の姿勢からの相対角度
         double alpha = normalizeAngle(target_angle - current_pose.yaw);
 
-        // 全方向移動ロボットの場合、車体の向きに関係なく目標方向に動けるため
-        // ローカル座標系でのx,y速度成分を計算
-        double distance_to_target = std::sqrt(dx_global * dx_global + dy_global * dy_global);
+        out_linear_x_velocity = current_target_velocity * std::cos(alpha);
+        out_linear_y_velocity = current_target_velocity * std::sin(alpha);
 
-        // ターゲット点への速度ベクトルをロボット座標系に変換
-        double speed_ratio = std::min(1.0, distance_to_target / current_look_ahead_distance_);
-        double local_vx = target_velocity_ * speed_ratio * std::cos(alpha);
-        double local_vy = target_velocity_ * speed_ratio * std::sin(alpha);
+        // 6. 角速度指令を計算
+        int next_idx_for_yaw = std::min(static_cast<int>(current_path_logic_.size()) - 1, target_idx);
+        int prev_idx_for_yaw = std::max(0, next_idx_for_yaw - 1);
 
-        // グローバル座標系の速度をロボット座標系に変換
-        out_linear_x_velocity = local_vx;
-        out_linear_y_velocity = local_vy;
+        double path_angle = std::atan2(
+            current_path_logic_[next_idx_for_yaw].y - current_path_logic_[prev_idx_for_yaw].y,
+            current_path_logic_[next_idx_for_yaw].x - current_path_logic_[prev_idx_for_yaw].x);
 
-        // 角速度計算 - 目標角度へ向かう回転速度
-        // 最終ターゲットの場合、最終点での姿勢も考慮する
-        if (static_cast<size_t>(target_idx) == current_path_logic_.size() - 1)
+        // 最終点に近づいたら、その手前のセグメントの向きを目標ヨー角とする
+        if (target_idx == current_path_logic_.size() - 1)
         {
-            // 最終点に近づいたら姿勢も合わせる
-            // 最終点での理想的な姿勢は、最後の2点を結ぶ方向とする
-            // ここでは簡単のため、現在のyaw角をそのまま維持
-            out_angular_velocity = 0.0;
-
-            // 最終ゴールに十分近づいたかチェック
-            double dx_to_actual_end = current_path_logic_.back().x - current_pose.x;
-            double dy_to_actual_end = current_path_logic_.back().y - current_pose.y;
-            double dist_to_final_goal = std::sqrt(dx_to_actual_end * dx_to_actual_end + dy_to_actual_end * dy_to_actual_end);
-
-            if (dist_to_final_goal < goal_radius_)
-            {
-                has_reached_goal_ = true;
-                out_linear_x_velocity = 0.0;
-                out_linear_y_velocity = 0.0;
-                out_angular_velocity = 0.0;
-                return false; // 終了を示す
-            }
+            const auto &p_final = current_path_logic_.back();
+            const auto &p_before_final = current_path_logic_[current_path_logic_.size() - 2];
+            path_angle = std::atan2(p_final.y - p_before_final.y, p_final.x - p_before_final.x);
         }
-        else
-        {
-            // 経路に沿った方向を向くような角速度
-            // 経路の接線方向（次の点への方向）を計算
-            int next_idx = std::min(static_cast<int>(current_path_logic_.size()) - 1, target_idx + 1);
-            double path_angle = std::atan2(
-                current_path_logic_[next_idx].y - current_path_logic_[target_idx].y,
-                current_path_logic_[next_idx].x - current_path_logic_[target_idx].x);
 
-            double yaw_error = normalizeAngle(path_angle - current_pose.yaw);
-            out_angular_velocity = 2.0 * yaw_error; // 比例係数は調整可能
-        }
+        double yaw_error = normalizeAngle(path_angle - current_pose.yaw);
+        out_angular_velocity = 2.0 * yaw_error; // このゲイン(2.0)も調整可能なパラメータにすると良い
 
         return true;
     }

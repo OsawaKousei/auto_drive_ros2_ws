@@ -12,9 +12,9 @@ namespace pure_pursuit
         // Initialization of algorithm_ is handled by its own constructor
     }
 
-    void PurePursuitController::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r)
+    void PurePursuitController::setParams(double k_ld, double min_ld, double max_ld, double target_v, double goal_r, double k_c, double k_v_red)
     {
-        algorithm_.setParams(k_ld, min_ld, max_ld, target_v, goal_r);
+        algorithm_.setParams(k_ld, min_ld, max_ld, target_v, goal_r, k_c, k_v_red);
     }
 
     void PurePursuitController::setPath(const nav_msgs::msg::Path &path_msg)
@@ -45,10 +45,12 @@ namespace pure_pursuit
         this->declare_parameter<std::string>("path_topic", "/local_path");
         this->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
         this->declare_parameter<double>("look_forward_gain", 0.3);
-        this->declare_parameter<double>("min_look_ahead_distance", 2.0);
-        this->declare_parameter<double>("max_look_ahead_distance", 10.0);
+        this->declare_parameter<double>("min_look_ahead_distance", 1.0);
+        this->declare_parameter<double>("max_look_ahead_distance", 2.0);
         this->declare_parameter<double>("target_velocity", 1.0);    // m/s
         this->declare_parameter<double>("goal_radius", 0.5);        // Added goal_radius parameter
+        this->declare_parameter<double>("k_c", 0.5);                // Control gain for curvature
+        this->declare_parameter<double>("k_v_red", 0.5);            // Control gain for velocity reduction
         this->declare_parameter<double>("control_loop_rate", 20.0); // Hz
 
         odom_topic_ = this->get_parameter("odom_topic").as_string();
@@ -59,9 +61,11 @@ namespace pure_pursuit
         double max_ld = this->get_parameter("max_look_ahead_distance").as_double();
         double target_v = this->get_parameter("target_velocity").as_double();
         double goal_r = this->get_parameter("goal_radius").as_double(); // Use goal_radius
+        double k_c = this->get_parameter("k_c").as_double();
+        double k_v_red = this->get_parameter("k_v_red").as_double();
         double control_loop_rate = this->get_parameter("control_loop_rate").as_double();
 
-        controller_.setParams(k_ld, min_ld, max_ld, target_v, goal_r); // Pass goal_r
+        controller_.setParams(k_ld, min_ld, max_ld, target_v, goal_r, k_c, k_v_red);
 
         path_sub_ = this->create_subscription<nav_msgs::msg::Path>(
             path_topic_, 10, std::bind(&PurePursuit::pathCallback, this, std::placeholders::_1));
