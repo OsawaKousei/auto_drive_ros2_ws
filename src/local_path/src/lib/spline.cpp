@@ -1,12 +1,9 @@
-//
-// Created by emile on 24/05/06.
-//
-
-#include "local_path/local_planning.hpp"
-#include <spline.hpp>
-#include <util_functions.hpp>
 #include <cassert>
 #include <cmath>
+
+#include "lib/spline.hpp"
+#include "lib/spline_logic.hpp"
+#include "lib/util_functions.hpp"
 
 void create_time_grid(std::vector<double> &T, double &tmin, double &tmax,
                       std::vector<double> &X, std::vector<double> &Y, bool is_closed_curve)
@@ -68,7 +65,7 @@ void create_time_grid(std::vector<double> &T, double &tmin, double &tmax,
     }
 }
 
-std::pair<std::vector<double>, std::vector<double>> spline_by_num(std::vector<double> xs, std::vector<double> ys, const int &num_points)
+std::pair<std::vector<double>, std::vector<double>> path_planning::spline_by_num(std::vector<double> xs, std::vector<double> ys, const int &num_points)
 {
     assert(xs.size() == ys.size() && xs.size() > 2);
 
@@ -94,8 +91,8 @@ std::pair<std::vector<double>, std::vector<double>> spline_by_num(std::vector<do
     return std::make_pair(new_xs, new_ys);
 }
 
-std::pair<std::vector<double>, std::vector<double>> spline_by_min_max(std::vector<double> xs, std::vector<double> ys,
-                                                                      double l_min, double l_max, double d_max)
+std::pair<std::vector<double>, std::vector<double>> path_planning::spline_by_min_max(std::vector<double> xs, std::vector<double> ys,
+                                                                                     double l_min, double l_max, double d_max)
 {
     assert(xs.size() == ys.size() && xs.size() > 2);
 
