@@ -3,6 +3,7 @@ import sys
 
 import rclpy
 from path_publisher import PathPublisher
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QCloseEvent, QDoubleValidator
 from PyQt5.QtWidgets import (
     QApplication,
@@ -93,6 +94,8 @@ class MainWindow(QMainWindow):
         self.waypoint_table.setHorizontalHeaderLabels(["ID", "X", "Y", "Z"])
         self.waypoint_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.waypoint_table.setSelectionBehavior(QTableWidget.SelectRows)
+        # セルが編集されたときのシグナルを接続
+        self.waypoint_table.cellChanged.connect(self.on_cell_changed)
         table_layout.addWidget(self.waypoint_table)
 
         # テーブル操作ボタン
@@ -116,10 +119,20 @@ class MainWindow(QMainWindow):
         table_layout.addLayout(table_buttons_layout)
         main_layout.addWidget(table_group)
 
-        # エクスポートボタン
+        # ファイル操作ボタングループ
+        file_buttons_layout = QHBoxLayout()
+
+        # CSVインポートボタン
+        import_button = QPushButton("CSVからインポート")
+        import_button.clicked.connect(self.import_from_csv)
+        file_buttons_layout.addWidget(import_button)
+
+        # CSVエクスポートボタン
         export_button = QPushButton("CSVにエクスポート")
         export_button.clicked.connect(self.export_to_csv)
-        main_layout.addWidget(export_button)
+        file_buttons_layout.addWidget(export_button)
+
+        main_layout.addLayout(file_buttons_layout)
 
     def add_waypoint(self) -> None:
         try:
@@ -131,9 +144,10 @@ class MainWindow(QMainWindow):
             self.waypoint_table.insertRow(row_position)
 
             # IDは1始まり
-            self.waypoint_table.setItem(
-                row_position, 0, QTableWidgetItem(str(row_position + 1))
-            )
+            # IDセルを編集不可に設定
+            id_item = QTableWidgetItem(str(row_position + 1))
+            id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
+            self.waypoint_table.setItem(row_position, 0, id_item)
             self.waypoint_table.setItem(row_position, 1, QTableWidgetItem(str(x)))
             self.waypoint_table.setItem(row_position, 2, QTableWidgetItem(str(y)))
             self.waypoint_table.setItem(row_position, 3, QTableWidgetItem(str(z)))
@@ -148,8 +162,90 @@ class MainWindow(QMainWindow):
         except ValueError:
             QMessageBox.warning(self, "入力エラー", "数値を正しく入力してください")
 
+    def on_cell_changed(self, row: int, column: int) -> None:
+        # IDカラム (column=0) の変更は無視
+        if column > 0:
+            # 一時的にcellChangedシグナルの接続を切断して再帰を防止
+            self.waypoint_table.cellChanged.disconnect(self.on_cell_changed)
+
+            try:
+                # 変更されたセルの内容が数値かチェック
+                text = self.waypoint_table.item(row, column).text()
+                value = float(text)
+                # 有効な数値なら、パスを更新
+                self.update_path()
+            except ValueError:
+                # 数値でない場合はエラーメッセージを表示し、値を0.0にリセット
+                QMessageBox.warning(self, "入力エラー", "数値を正しく入力してください")
+                self.waypoint_table.setItem(row, column, QTableWidgetItem("0.0"))
+            finally:
+                # シグナルの接続を復活
+                self.waypoint_table.cellChanged.connect(self.on_cell_changed)
+
+    def import_from_csv(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "CSVファイルから読み込み", "", "CSV Files (*.csv);;All Files (*)"
+        )
+
+        if filename:
+            try:
+                # 既存の経路点をクリア
+                self.waypoint_table.setRowCount(0)
+                self.waypoint_table.cellChanged.disconnect(self.on_cell_changed)
+
+                with open(filename, 'r', newline='') as file:
+                    reader = csv.reader(file)
+                    header = next(reader)  # ヘッダー行をスキップ
+
+                    for row_data in reader:
+                        if len(row_data) >= 4:  # ID, X, Y, Zの4列あることを確認
+                            row_position = self.waypoint_table.rowCount()
+                            self.waypoint_table.insertRow(row_position)
+
+                            # IDセルを編集不可に設定
+                            id_item = QTableWidgetItem(row_data[0])
+                            id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
+                            self.waypoint_table.setItem(row_position, 0, id_item)
+
+                            # X, Y, Z値を設定
+                            for col in range(1, 4):
+                                if col < len(row_data):
+                                    try:
+                                        # 数値の検証
+                                        value = float(row_data[col])
+                                        self.waypoint_table.setItem(
+                                            row_position,
+                                            col,
+                                            QTableWidgetItem(str(value)),
+                                        )
+                                    except ValueError:
+                                        # 数値でない場合は0.0を設定
+                                        self.waypoint_table.setItem(
+                                            row_position, col, QTableWidgetItem("0.0")
+                                        )
+
+                # パスを更新
+                self.update_path()
+                QMessageBox.information(
+                    self,
+                    "インポート成功",
+                    f"CSVファイルから{self.waypoint_table.rowCount()}個の経路点を読み込みました。",
+                )
+
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "インポートエラー",
+                    f"CSVの読み込み中にエラーが発生しました: {str(e)}",
+                )
+            finally:
+                # シグナルの接続を復活
+                self.waypoint_table.cellChanged.connect(self.on_cell_changed)
+
     def move_up(self) -> None:
         selected_row = self.waypoint_table.currentRow()
+        self.waypoint_table.cellChanged.disconnect(self.on_cell_changed)
+
         if selected_row > 0:
             # 行を入れ替え
             for col in range(1, 4):  # X, Y, Z列のみ入れ替える
@@ -167,8 +263,12 @@ class MainWindow(QMainWindow):
             # パスを更新
             self.update_path()
 
+        self.waypoint_table.cellChanged.connect(self.on_cell_changed)
+
     def move_down(self) -> None:
         selected_row = self.waypoint_table.currentRow()
+        self.waypoint_table.cellChanged.disconnect(self.on_cell_changed)
+
         if selected_row >= 0 and selected_row < self.waypoint_table.rowCount() - 1:
             # 行を入れ替え
             for col in range(1, 4):  # X, Y, Z列のみ入れ替える
@@ -186,17 +286,25 @@ class MainWindow(QMainWindow):
             # パスを更新
             self.update_path()
 
+        self.waypoint_table.cellChanged.connect(self.on_cell_changed)
+
     def delete_waypoint(self) -> None:
         selected_row = self.waypoint_table.currentRow()
+        self.waypoint_table.cellChanged.disconnect(self.on_cell_changed)
+
         if selected_row >= 0:
             self.waypoint_table.removeRow(selected_row)
 
             # IDを振り直す
             for row in range(self.waypoint_table.rowCount()):
-                self.waypoint_table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+                id_item = QTableWidgetItem(str(row + 1))
+                id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
+                self.waypoint_table.setItem(row, 0, id_item)
 
             # パスを更新
             self.update_path()
+
+        self.waypoint_table.cellChanged.connect(self.on_cell_changed)
 
     def update_path(self) -> None:
         waypoints = []
