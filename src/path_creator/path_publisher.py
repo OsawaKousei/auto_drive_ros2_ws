@@ -1,8 +1,9 @@
+import math
 import threading
 import time
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Quaternion
 from nav_msgs.msg import Path
 from rclpy.node import Node
 
@@ -33,20 +34,43 @@ class PathPublisher(Node):
     def create_path_message(self) -> None:
         """
         経路点リストからPathメッセージを作成します
+        waypoints: [(x, y, yaw), ...]
         """
         self.path_msg.header.stamp = self.get_clock().now().to_msg()
         self.path_msg.poses = []
 
-        for x, y, z in self.waypoints:
+        for x, y, yaw in self.waypoints:
             pose = PoseStamped()
             pose.header.frame_id = 'map'
             pose.header.stamp = self.get_clock().now().to_msg()
             pose.pose.position.x = x
             pose.pose.position.y = y
-            pose.pose.position.z = z
-            pose.pose.orientation.w = 1.0  # 単位クォータニオン（回転なし）
+            pose.pose.position.z = 0.0  # Z座標は常に0
+
+            # Yaw角からクォータニオンに変換
+            q = self.euler_to_quaternion(0.0, 0.0, yaw)
+            pose.pose.orientation = q
 
             self.path_msg.poses.append(pose)
+
+    def euler_to_quaternion(self, roll: float, pitch: float, yaw: float) -> Quaternion:
+        """
+        オイラー角（ロール、ピッチ、ヨー）をクォータニオンに変換
+        """
+        cy = math.cos(yaw * 0.5)
+        sy = math.sin(yaw * 0.5)
+        cp = math.cos(pitch * 0.5)
+        sp = math.sin(pitch * 0.5)
+        cr = math.cos(roll * 0.5)
+        sr = math.sin(roll * 0.5)
+
+        q = Quaternion()
+        q.w = cy * cp * cr + sy * sp * sr
+        q.x = cy * cp * sr - sy * sp * cr
+        q.y = sy * cp * sr + cy * sp * cr
+        q.z = sy * cp * cr - cy * sp * sr
+
+        return q
 
     def publish_loop(self) -> None:
         """

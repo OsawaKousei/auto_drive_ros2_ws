@@ -67,14 +67,14 @@ class MainWindow(QMainWindow):
         y_layout.addWidget(self.y_input)
         coord_layout.addLayout(y_layout)
 
-        # Z座標
-        z_layout = QHBoxLayout()
-        z_layout.addWidget(QLabel("Z:"))
-        self.z_input = QLineEdit()
-        self.z_input.setValidator(QDoubleValidator())
-        self.z_input.setText("0.0")  # デフォルト値
-        z_layout.addWidget(self.z_input)
-        coord_layout.addLayout(z_layout)
+        # Yaw角入力
+        yaw_layout = QHBoxLayout()
+        yaw_layout.addWidget(QLabel("Yaw:"))
+        self.yaw_input = QLineEdit()
+        self.yaw_input.setValidator(QDoubleValidator())
+        self.yaw_input.setText("0.0")  # デフォルト値
+        yaw_layout.addWidget(self.yaw_input)
+        coord_layout.addLayout(yaw_layout)
 
         input_layout.addLayout(coord_layout)
 
@@ -90,8 +90,8 @@ class MainWindow(QMainWindow):
         table_layout = QVBoxLayout()
         table_group.setLayout(table_layout)
 
-        self.waypoint_table = QTableWidget(0, 4)  # 行数0, 列数4 (ID, X, Y, Z)
-        self.waypoint_table.setHorizontalHeaderLabels(["ID", "X", "Y", "Z"])
+        self.waypoint_table = QTableWidget(0, 4)  # 行数0, 列数4 (ID, X, Y, Yaw)
+        self.waypoint_table.setHorizontalHeaderLabels(["ID", "X", "Y", "Yaw"])
         self.waypoint_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.waypoint_table.setSelectionBehavior(QTableWidget.SelectRows)
         # セルが編集されたときのシグナルを接続
@@ -138,19 +138,18 @@ class MainWindow(QMainWindow):
         try:
             x = float(self.x_input.text() or 0.0)
             y = float(self.y_input.text() or 0.0)
-            z = float(self.z_input.text() or 0.0)
+            yaw = float(self.yaw_input.text() or 0.0)
 
             row_position = self.waypoint_table.rowCount()
             self.waypoint_table.insertRow(row_position)
 
-            # IDは1始まり
             # IDセルを編集不可に設定
             id_item = QTableWidgetItem(str(row_position + 1))
             id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
             self.waypoint_table.setItem(row_position, 0, id_item)
             self.waypoint_table.setItem(row_position, 1, QTableWidgetItem(str(x)))
             self.waypoint_table.setItem(row_position, 2, QTableWidgetItem(str(y)))
-            self.waypoint_table.setItem(row_position, 3, QTableWidgetItem(str(z)))
+            self.waypoint_table.setItem(row_position, 3, QTableWidgetItem(str(yaw)))
 
             # 入力欄をクリア
             self.x_input.clear()
@@ -198,7 +197,7 @@ class MainWindow(QMainWindow):
                     header = next(reader)  # ヘッダー行をスキップ
 
                     for row_data in reader:
-                        if len(row_data) >= 4:  # ID, X, Y, Zの4列あることを確認
+                        if len(row_data) >= 4:  # ID, X, Y, Yaw/Zの4列あることを確認
                             row_position = self.waypoint_table.rowCount()
                             self.waypoint_table.insertRow(row_position)
 
@@ -207,11 +206,10 @@ class MainWindow(QMainWindow):
                             id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
                             self.waypoint_table.setItem(row_position, 0, id_item)
 
-                            # X, Y, Z値を設定
-                            for col in range(1, 4):
+                            # X, Y値を設定
+                            for col in range(1, 3):
                                 if col < len(row_data):
                                     try:
-                                        # 数値の検証
                                         value = float(row_data[col])
                                         self.waypoint_table.setItem(
                                             row_position,
@@ -219,10 +217,14 @@ class MainWindow(QMainWindow):
                                             QTableWidgetItem(str(value)),
                                         )
                                     except ValueError:
-                                        # 数値でない場合は0.0を設定
                                         self.waypoint_table.setItem(
                                             row_position, col, QTableWidgetItem("0.0")
                                         )
+
+                            yaw = float(row_data[3])
+                            self.waypoint_table.setItem(
+                                row_position, 3, QTableWidgetItem(str(yaw))
+                            )
 
                 # パスを更新
                 self.update_path()
@@ -248,7 +250,7 @@ class MainWindow(QMainWindow):
 
         if selected_row > 0:
             # 行を入れ替え
-            for col in range(1, 4):  # X, Y, Z列のみ入れ替える
+            for col in range(1, 4):  # X, Y, Yaw列のみ入れ替える
                 current = self.waypoint_table.item(selected_row, col).text()
                 above = self.waypoint_table.item(selected_row - 1, col).text()
 
@@ -271,7 +273,7 @@ class MainWindow(QMainWindow):
 
         if selected_row >= 0 and selected_row < self.waypoint_table.rowCount() - 1:
             # 行を入れ替え
-            for col in range(1, 4):  # X, Y, Z列のみ入れ替える
+            for col in range(1, 4):  # X, Y, Yaw列のみ入れ替える
                 current = self.waypoint_table.item(selected_row, col).text()
                 below = self.waypoint_table.item(selected_row + 1, col).text()
 
@@ -311,8 +313,8 @@ class MainWindow(QMainWindow):
         for row in range(self.waypoint_table.rowCount()):
             x = float(self.waypoint_table.item(row, 1).text())
             y = float(self.waypoint_table.item(row, 2).text())
-            z = float(self.waypoint_table.item(row, 3).text())
-            waypoints.append((x, y, z))
+            yaw = float(self.waypoint_table.item(row, 3).text())  # Yawとして読み込み
+            waypoints.append((x, y, yaw))  # Yawとして追加
 
         self.path_publisher.update_path(waypoints)
 
@@ -331,14 +333,14 @@ class MainWindow(QMainWindow):
             try:
                 with open(filename, 'w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(["ID", "X", "Y", "Z"])
+                    writer.writerow(["ID", "X", "Y", "Yaw"])  # ヘッダーをYawに変更
 
                     for row in range(self.waypoint_table.rowCount()):
                         id_val = self.waypoint_table.item(row, 0).text()
                         x = self.waypoint_table.item(row, 1).text()
                         y = self.waypoint_table.item(row, 2).text()
-                        z = self.waypoint_table.item(row, 3).text()
-                        writer.writerow([id_val, x, y, z])
+                        yaw = self.waypoint_table.item(row, 3).text()
+                        writer.writerow([id_val, x, y, yaw])
 
                 QMessageBox.information(
                     self,
